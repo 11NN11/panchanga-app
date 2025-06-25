@@ -1,89 +1,81 @@
-# app.py
-
 import streamlit as st
-from datetime import datetime
 from skyfield.api import load, Topos
+from datetime import datetime
 import pytz
-from streamlit_folium import st_folium
-import folium
+from geopy.geocoders import Nominatim
 
-# Load ephemeris
-eph = load('de421.bsp')
+# Load ephemeris data
+eph = load('de421.bsp')  # Only needs to be downloaded once
 ts = load.timescale()
 
-# Panchanga definitions
-tithis = ["Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi",
-          "Saptami", "Ashtami", "Navami", "Dashami", "Ekadashi", "Dwadashi",
-          "Trayodashi", "Chaturdashi", "Purnima/Amavasya"]
+# Nakshatra list (27)
+nakshatras = [
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu",
+    "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta",
+    "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha",
+    "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha", "Purva Bhadrapada",
+    "Uttara Bhadrapada", "Revati"
+]
 
-nakshatras = ["Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
-              "Punarvasu", "Pushya", "Ashlesha", "Magha", "P. Phalguni", "U. Phalguni",
-              "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
-              "Mula", "P. Ashadha", "U. Ashadha", "Shravana", "Dhanishta", "Shatabhisha",
-              "P. Bhadrapada", "U. Bhadrapada", "Revati"]
+# Tithi names (30 total)
+tithis = [
+    "Shukla Pratipada", "Shukla Dwitiya", "Shukla Tritiya", "Shukla Chaturthi", "Shukla Panchami",
+    "Shukla Shashti", "Shukla Saptami", "Shukla Ashtami", "Shukla Navami", "Shukla Dashami",
+    "Shukla Ekadashi", "Shukla Dwadashi", "Shukla Trayodashi", "Shukla Chaturdashi", "Purnima",
+    "Krishna Pratipada", "Krishna Dwitiya", "Krishna Tritiya", "Krishna Chaturthi", "Krishna Panchami",
+    "Krishna Shashti", "Krishna Saptami", "Krishna Ashtami", "Krishna Navami", "Krishna Dashami",
+    "Krishna Ekadashi", "Krishna Dwadashi", "Krishna Trayodashi", "Krishna Chaturdashi", "Amavasya"
+]
 
-# Panchanga calculator
-def calculate_panchanga(lat, lon):
-    timezone = pytz.timezone("Asia/Kolkata")
-    now = datetime.now(timezone)
-    t = ts.from_datetime(now)
+# Get user location and date
+st.title("🌞 Real-Time Panchang Demo")
+city = st.text_input("Enter your location (e.g., Varanasi, Delhi)", value="Delhi")
+date = st.date_input("Choose a date", value=datetime.now().date())
 
+# Use geopy to convert city name to lat/lon
+geolocator = Nominatim(user_agent="panchang-app")
+location = geolocator.geocode(city)
+
+if location:
+    lat, lon = location.latitude, location.longitude
+    st.success(f"📍 Location: {location.address}")
+    st.write(f"🧭 Coordinates: {lat:.4f}, {lon:.4f}")
+
+    # Skyfield observer
     observer = Topos(latitude_degrees=lat, longitude_degrees=lon)
-    obs = eph['earth'] + observer
-    sun_pos = obs.at(t).observe(eph['sun']).apparent()
-    moon_pos = obs.at(t).observe(eph['moon']).apparent()
+    time = ts.utc(date.year, date.month, date.day, datetime.now().hour)
 
-    angle = moon_pos.separation_from(sun_pos).degrees
-    tithi_index = int(angle // 12)  # 0–29
-    tithi_number = tithi_index + 1  # 1–30
-    tithi_name = tithis[tithi_index % 15]
+    # Planet positions
+    sun = eph['sun']
+    moon = eph['moon']
+    earth = eph['earth']
+    observer = earth + observer
 
-    moon_long = moon_pos.ecliptic_latlon()[1].degrees
-    nak_index = int(moon_long // (360 / 27))
-    nakshatra = nakshatras[nak_index]
+    sun_pos = observer.at(time).observe(sun).apparent().ecliptic_latlon()
+    moon_pos = observer.at(time).observe(moon).apparent().ecliptic_latlon()
 
-    weekday = now.strftime("%A")
-    date = now.strftime("%Y-%m-%d %H:%M")
+    sun_long = sun_pos[1].degrees
+    moon_long = moon_pos[1].degrees
 
-    return {
-        "date": date,
-        "vaara": weekday,
-        "tithi": f"{tithi_name} ({tithi_number}/30)",
-        "nakshatra": f"{nakshatra} ({nak_index + 1}/27)"
-    }
+    # Calculate Tithi
+    angle = (moon_long - sun_long) % 360
+    tithi_index = int(angle / 12)
+    tithi = tithis[tithi_index]
 
-# -----------------------------------------
-# 🌍 Streamlit App with Map Input
-# -----------------------------------------
-st.set_page_config(page_title="🕉 Panchanga with Map", layout="centered")
+    # Calculate Nakshatra
+    nakshatra_index = int(moon_long / (360 / 27))
+    nakshatra = nakshatras[nakshatra_index]
 
-st.title("🕉 Panchanga App – Click on Map to Get Panchang")
+    # Calculate Vaara (weekday)
+    weekday = date.strftime("%A")
 
-st.markdown("Click on any place on the map to get Panchanga for that location:")
+    # Display output
+    st.subheader("🕉️ Panchang Elements")
+    st.write(f"**Vaara (Day)**: {weekday}")
+    st.write(f"**Tithi**: {tithi}")
+    st.write(f"**Nakshatra**: {nakshatra}")
+    st.write(f"**Moon Longitude**: {moon_long:.2f}°")
+    st.write(f"**Sun Longitude**: {sun_long:.2f}°")
 
-# Default map centered at Mumbai
-m = folium.Map(location=[19.0760, 72.8777], zoom_start=4)
-m.add_child(folium.LatLngPopup())  # allows click-to-get coords
-
-# Display map and get coordinates
-map_data = st_folium(m, height=400, width=700)
-
-lat = 19.0760
-lon = 72.8777
-
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lon = map_data["last_clicked"]["lng"]
-    st.success(f"📍 Location selected: {lat:.4f}, {lon:.4f}")
-
-if st.button("Get Panchanga"):
-    p = calculate_panchanga(lat, lon)
-    st.markdown(f"📅 **Date & Time**: {p['date']}")
-    st.markdown(f"🌞 **Vaara**: {p['vaara']}")
-    st.markdown(f"🌙 **Tithi**: {p['tithi']}")
-    st.markdown(f"🌌 **Nakshatra**: {p['nakshatra']}")
 else:
-    st.info("Click the map and press the button to fetch Panchanga.")
-
-st.markdown("---")
-st.caption("Built with Skyfield, Streamlit, and Folium • Real-time astronomy")
+    st.error("Could not find the location. Please check the name and try again.")
