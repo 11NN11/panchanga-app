@@ -34,8 +34,9 @@ def calculate_panchanga(lat, lon):
     moon_pos = obs.at(t).observe(eph['moon']).apparent()
 
     angle = moon_pos.separation_from(sun_pos).degrees
-    tithi_num = int(angle // 12) + 1
-    tithi = tithis[tithi_num % 15]
+    tithi_index = int(angle // 12)  # 0–29
+    tithi_number = tithi_index + 1  # 1–30
+    tithi_name = tithis[tithi_index % 15]
 
     moon_long = moon_pos.ecliptic_latlon()[1].degrees
     nak_index = int(moon_long // (360 / 27))
@@ -47,7 +48,7 @@ def calculate_panchanga(lat, lon):
     return {
         "date": date,
         "vaara": weekday,
-        "tithi": f"{tithi} ({tithi_num}/30)",
+        "tithi": f"{tithi_name} ({tithi_number}/30)",
         "nakshatra": f"{nakshatra} ({nak_index + 1}/27)"
     }
 
