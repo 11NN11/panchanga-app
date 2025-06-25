@@ -1,6 +1,5 @@
 streamlit
 skyfield
+geopy
 pytz
-geopy 
-streamlit-autorefresh 
-plotly
+streamlit-autorefresh
