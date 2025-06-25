@@ -1,6 +1,6 @@
 streamlit
 skyfield
-jplephem
 pytz
-folium
-streamlit-folium
+geopy 
+streamlit-autorefresh 
+plotly
